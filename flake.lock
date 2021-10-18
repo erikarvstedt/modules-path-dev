@@ -1,0 +1,44 @@
+{
+  "nodes": {
+    "nixpkgsExtraContainer": {
+      "locked": {
+        "lastModified": 1633422745,
+        "narHash": "sha256-gA6Ok64nPbkjHk3Oanq4641EeYkjcKhisDF9wBjLxEk=",
+        "owner": "NixOS",
+        "repo": "nixpkgs",
+        "rev": "8e1eab9eae4278c9bb1dcae426848a581943db5a",
+        "type": "github"
+      },
+      "original": {
+        "owner": "NixOS",
+        "ref": "nixpkgs-unstable",
+        "repo": "nixpkgs",
+        "type": "github"
+      }
+    },
+    "nixpkgsModulesPath": {
+      "locked": {
+        "lastModified": 1634595044,
+        "narHash": "sha256-qnwmtAs/PqqZFdpjyQmLH1Ewrr7hyr9JIhL3z3ngPVc=",
+        "owner": "erikarvstedt",
+        "repo": "nixpkgs",
+        "rev": "0da59460d282059a38bc4cb8712e376edbff0725",
+        "type": "github"
+      },
+      "original": {
+        "owner": "erikarvstedt",
+        "ref": "add-modules-path",
+        "repo": "nixpkgs",
+        "type": "github"
+      }
+    },
+    "root": {
+      "inputs": {
+        "nixpkgsExtraContainer": "nixpkgsExtraContainer",
+        "nixpkgsModulesPath": "nixpkgsModulesPath"
+      }
+    }
+  },
+  "root": "root",
+  "version": 7
+}

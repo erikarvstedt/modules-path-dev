@@ -1,0 +1,29 @@
+Remove glibc patch from nixpkgs branch `add-modules-path`.
+The resulting nixpkgs can be used for testing the branch without a
+full system rebuild triggered by the glibc patch.
+
+diff --git a/nixos/modules/services/system/nscd.nix b/nixos/modules/services/system/nscd.nix
+index 1d7229d1107..1d23bd7d47c 100644
+--- a/nixos/modules/services/system/nscd.nix
++++ b/nixos/modules/services/system/nscd.nix
+@@ -50,6 +50,7 @@ in
+
+         wantedBy = [ "nss-lookup.target" "nss-user-lookup.target" ];
+
++        environment = { LD_LIBRARY_PATH = makeLibraryPath config.system.nssModules.list; };
+         restartTriggers = [
+           config.environment.etc.hosts.source
+           config.environment.etc."nsswitch.conf".source
+diff --git a/pkgs/development/libraries/glibc/common.nix b/pkgs/development/libraries/glibc/common.nix
+index 28c7721aeff..e651a8effac 100644
+--- a/pkgs/development/libraries/glibc/common.nix
++++ b/pkgs/development/libraries/glibc/common.nix
+@@ -120,8 +120,6 @@ stdenv.mkDerivation ({
+       })
+
+       ./fix-x64-abi.patch
+-
+-      ./add-extra-module-load-path.patch
+     ]
+     ++ lib.optional stdenv.hostPlatform.isMusl ./fix-rpc-types-musl-conflicts.patch
+     ++ lib.optional stdenv.buildPlatform.isDarwin ./darwin-cross-build.patch;
