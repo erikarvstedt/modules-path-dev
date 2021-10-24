@@ -1,18 +1,11 @@
 {
-  inputs.nixpkgsModulesPath.url = "github:erikarvstedt/nixpkgs/add-modules-path";
-  inputs.nixpkgsExtraContainer.url = "github:NixOS/nixpkgs/nixpkgs-unstable";
+  inputs.nixpkgs.url = "github:NixOS/nixpkgs/nixpkgs-unstable";
+  inputs.nixpkgsModulesPath.url = "git+file:///home/main/d/nix-dev/nixpkgs?ref=add-modules-path-3";
 
   outputs = { ... }@inputs: with inputs; let
     system = "x86_64-linux";
+    pkgs = nixpkgs.legacyPackages.${system};
     pkgsModulesPath = nixpkgsModulesPath.legacyPackages.${system};
-    pkgsExtraContainer = nixpkgsExtraContainer.legacyPackages.${system};
-    pkgs = pkgsExtraContainer;
-
-    nixpkgsModulesPathNoPatch = pkgs.runCommand "nixpkgs" {} ''
-      ${pkgs.rsync}/bin/rsync -r --chmod=a+w ${nixpkgsModulesPath}/ $out
-      cd $out
-      patch -p1 <${./remove-glibc-patch.patch}
-    '';
 
     debugGlibc = pkgsModulesPath.glibc.overrideAttrs (old: rec {
       # work around `pkgs.enableDebugging` currently being broken
@@ -23,13 +16,12 @@
 
       shellHook = ''
         . ${./lib.sh}
-        export NIX_PATH=nixpkgs-modules-path=${nixpkgsModulesPath}:$NIX_PATH
-        export NIX_PATH=nixpkgs-modules-path-no-patch=${nixpkgsModulesPathNoPatch}:$NIX_PATH
-        export PATH=${pkgsExtraContainer.extra-container}/bin:$PATH
+        export NIX_PATH=nixpkgs=${nixpkgs}:nixpkgs-modules-path=${nixpkgsModulesPath}:$NIX_PATH
+        export PATH=${pkgs.extra-container}/bin:$PATH
       '';
     });
   in {
     devShell.${system} = debugGlibc;
-    packages.${system} = { inherit nixpkgsModulesPathNoPatch; };
+    defaultPackage.${system} = nixpkgsModulesPathNoPatch;
   };
 }

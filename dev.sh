@@ -1,11 +1,11 @@
 # This repo helps testing and debugging branch
-# https://github.com/erikarvstedt/nixpkgs/commits/add-modules-path
+# https://github.com/erikarvstedt/nixpkgs/commits/add-modules-path-3
 
 # Run the commands below from within a dev shell:
 nix develop
 
 #-------------------------------------------------------
-## 1. Fetch glibc source including patches from branch add-modules-path
+## 1. Fetch glibc source including patches from branch add-modules-path-3
 # to ./glibc-2.33 and build glibc incrementally with output to ./build
 # See ./lib.sh for details
 # This function is idempotent.
@@ -22,66 +22,10 @@ gccCustomGlibc call-getaddrinfo.c -o call-getai
 strace ./call-getai
 
 #-------------------------------------------------------
-## 3. run the binary in a container based on
-# https://github.com/erikarvstedt/nixpkgs/commits/add-modules-path-no-glibc-patch
-# This branch is like add-modules-path but doesn't contain the glibc patch
-# so that a full system build is not triggered
-
-# start shell in container
-read -d '' tmpstr <<'EOF' || :
-{
-  containers.tmp = {
-    extra.addressPrefix = "10.30.0";
-    extra.enableWAN = true;
-    bindMounts.${toString <pwd>} = {};
-    config = { pkgs, config, lib, ... }: with lib; {
-      networking.firewall.enable = false;
-      environment.variables.PAGER = "cat";
-      system.activationScripts.linkPwd = ''
-        ln -sfn "${toString <pwd>}" /pwd
-      '';
-    };
-  };
-}
-EOF
-sudo extra-container shell -E "$tmpstr" --nixpkgs-path "<nixpkgs-modules-path-no-patch>" --run c
-
-## execute the following commands in the container shell that just started
-# run the binary built in step 1. in the container
-/pwd/call-getai
-
-# check that /run/nss-modules64-2.33/lib/libnss_mymachines.so.2 is used
-strace /pwd/call-getai |& grep /run/nss-modules
-
-# nscd is running
-systemctl status nscd
-# the nscd socket is not opened
-strace /pwd/call-getai |& grep nscd/socket # => no match
-# binaries using previous versions of glibc still use nscd
-strace getent hosts localhost |& grep nscd/socket
-# (exit shell here)
-
-#-------------------------------------------------------
-## 4. run a container based on branch add-modules-path
+## 3. run a container based on branch add-modules-path-3
 # This uses the patched glibc globally in the system.
 
-# 4.1. Build a basic system. This can take up to 2 hours.
-nix-build --out-link build/glibc-system
-(import <nixpkgs-modules-path/nixos> {
-  configuration = { pkgs, lib, ... }: {
-    boot.isContainer = true;
-    documentation.enable = false;
-    # Avoid pulling in polkit -> spidermonkey -> rustc -> LLVM
-    security.polkit.enable = false;
-  };
-}).system
-EOF
-
-# we need this further below in the container shell
-nix build --out-link build/old-glibc -f '<nixpkgs-modules-path-no-patch>' glibc.bin
-
-# 4.2 start shell in container
-read -d '' tmpstr <<'EOF' || :
+read -d '' containerSrc <<'EOF' || :
 {
   containers.tmp = {
     extra.addressPrefix = "10.30.0";
@@ -89,6 +33,7 @@ read -d '' tmpstr <<'EOF' || :
     bindMounts.${toString <pwd>} = {};
     config = { pkgs, config, lib, ... }: with lib; {
       networking.firewall.enable = false;
+      documentation.enable = false;
       environment.variables.PAGER = "cat";
       system.activationScripts.linkPwd = ''
         ln -sfn "${toString <pwd>}" /pwd
@@ -99,15 +44,24 @@ read -d '' tmpstr <<'EOF' || :
   };
 }
 EOF
-sudo extra-container shell -E "$tmpstr"  --nixpkgs-path "<nixpkgs-modules-path>" --run c
 
-## execute the following commands in the container shell that just started
-# system binaries don't use nscd
-strace getent hosts localhost |& grep nscd/socket # => no match
+# 3.2 Build the container system. This can take up to 2 hours.
+extra-container build -E "$containerSrc" --nixpkgs-path "<nixpkgs-modules-path>"
+# With external builder
+extra-container build -E "$containerSrc" --nixpkgs-path "<nixpkgs-modules-path>" --build-args --max-jobs 0 --builders 'ssh://mybuilder - - 15 - big-parallel'
 
-# instead, they directly load the modules
+# 3.3 Start shell in container
+sudo extra-container shell -E "$containerSrc" --nixpkgs-path "<nixpkgs-modules-path>" --run c
+
+## Execute the following commands in the container shell that just started:
+
+getent hosts
+
+# nscd is running and used by glibc
+systemctl status nscd
+strace getent hosts localhost |& grep nscd
+
+systemctl stop nscd
+# now /run/nss-modules-{hash}/lib/libnss_mymachines.so.2 is used directly
 strace getent hosts localhost |& grep /run/nss-modules
-
-# binaries using previous versions of glibc fall back to using nscd
-strace /pwd/build/old-glibc-bin/bin/getent hosts localhost |& grep nscd/socket
 # (exit shell here)

@@ -10,7 +10,7 @@ createSrc() {(
   git init
   git add .
   git commit -m "init at glibc-2.33" >/dev/null
-  patchPhase
+  patchPhase || true
   git add .
   git commit -m $'apply nixpkgs patches\n\nApply patchPhase of pkgs.glibc'
 )}
